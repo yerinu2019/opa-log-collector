@@ -93,19 +93,23 @@ def writeMetrics(log, converted):
         val = metrics[key]
         series = monitoring_v3.TimeSeries()
         series.metric.type = "custom.googleapis.com/opa/" + key
+        series.resource.type = "generic_task"
+        host = converted["req_host"].split('.')
+        series.resource.labels["job"] = host[0]
+        series.resource.labels["namespece"] = host[1]
         timestamp = timestamp_pb2.Timestamp()        
         interval = monitoring_v3.TimeInterval()
         timestamp.FromJsonString(converted['req_time'])
         interval.end_time = timestamp
-        print('converted[req_time]=', converted['req_time'])
-        print('interval.end_time=', interval.end_time)
-        point = monitoring_v3.Point({"interval": interval, "value": {"int64_value": val}})
+        point = monitoring_v3.Point({"interval": interval, "value": {"double_value": val}})
         series.points = [point]   
         try:
             client.create_time_series(name=project_name, time_series=[series]) 
         except exceptions.InvalidArgument as e:
-            if "more frequently than the maximum sampling period" not in e.message:
-                raise e    
+            if "more frequently than the maximum sampling period" in e.message or "Points must be written in order" in e.message:
+                continue
+            else:
+                raise e
    
 
 @app.route('/logs', methods=['POST'])
